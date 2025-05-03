@@ -12,6 +12,8 @@ import AllPosts from "@/pages/AllPosts";
 import About from "@/pages/About";
 import Contact from "@/pages/Contact";
 import TagsPage from "@/pages/TagsPage";
+import TodayILearned from "@/pages/TodayILearned";
+import Repositories from "@/pages/Repositories";
 
 function Router() {
   return (
@@ -21,6 +23,9 @@ function Router() {
       <Route path="/blog/:slug" component={BlogPost} />
       <Route path="/tags" component={TagsPage} />
       <Route path="/tags/:slug" component={TagsPage} />
+      <Route path="/til" component={TodayILearned} />
+      <Route path="/til/:id" component={TodayILearned} />
+      <Route path="/repositories" component={Repositories} />
       <Route path="/about" component={About} />
       <Route path="/contact" component={Contact} />
       <Route component={NotFound} />

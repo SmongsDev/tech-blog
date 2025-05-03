@@ -367,7 +367,7 @@ export class DatabaseStorage implements IStorage {
 
     const taggedEntries = await db.select()
       .from(tilEntries)
-      .where(tilEntries.id.in(tilIds))
+      .where(inArray(tilEntries.id, tilIds))
       .orderBy(desc(tilEntries.createdAt));
 
     return Promise.all(
@@ -428,7 +428,7 @@ export class DatabaseStorage implements IStorage {
     
     return db.select()
       .from(tags)
-      .where(tags.id.in(tagIds));
+      .where(inArray(tags.id, tagIds));
   }
 
   async addTagToTil(tilTagData: InsertTilTag): Promise<TilTag> {
