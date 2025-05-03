@@ -1,9 +1,19 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertPostSchema, insertTagSchema, insertCommentSchema, insertUserSchema, insertPostTagSchema } from "@shared/schema";
+import { 
+  insertPostSchema, 
+  insertTagSchema, 
+  insertCommentSchema, 
+  insertUserSchema, 
+  insertPostTagSchema,
+  insertTilEntrySchema,
+  insertTilTagSchema,
+  insertGithubRepositorySchema 
+} from "@shared/schema";
 import { z } from "zod";
 import { fromZodError } from 'zod-validation-error';
+import axios from 'axios';
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Get all posts
@@ -205,6 +215,254 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       console.error("Error creating user:", error);
       return res.status(500).json({ message: "Error creating user" });
+    }
+  });
+
+  // Update a user
+  app.put("/api/users/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const user = await storage.getUser(id);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const validatedData = insertUserSchema.partial().parse(req.body);
+      const updatedUser = await storage.updateUser(id, validatedData);
+      return res.json(updatedUser);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const validationError = fromZodError(error);
+        return res.status(400).json({ message: validationError.message });
+      }
+      console.error("Error updating user:", error);
+      return res.status(500).json({ message: "Error updating user" });
+    }
+  });
+
+  // TIL Entries Routes
+  
+  // Get all TIL entries
+  app.get("/api/til", async (req: Request, res: Response) => {
+    try {
+      const entries = await storage.getTilEntriesWithRelations();
+      return res.json(entries);
+    } catch (error) {
+      console.error("Error fetching TIL entries:", error);
+      return res.status(500).json({ message: "Error fetching TIL entries" });
+    }
+  });
+
+  // Get recent TIL entries
+  app.get("/api/til/recent", async (req: Request, res: Response) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+      const entries = await storage.getRecentTilEntries(limit);
+      return res.json(entries);
+    } catch (error) {
+      console.error("Error fetching recent TIL entries:", error);
+      return res.status(500).json({ message: "Error fetching recent TIL entries" });
+    }
+  });
+
+  // Get TIL entry by ID
+  app.get("/api/til/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const entry = await storage.getTilEntry(id);
+      
+      if (!entry) {
+        return res.status(404).json({ message: "TIL entry not found" });
+      }
+
+      const author = await storage.getUser(entry.authorId);
+      const tags = await storage.getTilTags(entry.id);
+      
+      return res.json({
+        ...entry,
+        author,
+        tags
+      });
+    } catch (error) {
+      console.error("Error fetching TIL entry:", error);
+      return res.status(500).json({ message: "Error fetching TIL entry" });
+    }
+  });
+
+  // Get TIL entries by tag
+  app.get("/api/tags/:slug/til", async (req: Request, res: Response) => {
+    try {
+      const { slug } = req.params;
+      const entries = await storage.getTilEntriesByTag(slug);
+      return res.json(entries);
+    } catch (error) {
+      console.error("Error fetching TIL entries by tag:", error);
+      return res.status(500).json({ message: "Error fetching TIL entries by tag" });
+    }
+  });
+
+  // Search TIL entries
+  app.get("/api/til/search", async (req: Request, res: Response) => {
+    try {
+      const query = req.query.q as string || "";
+      const results = await storage.searchTilEntries(query);
+      return res.json(results);
+    } catch (error) {
+      console.error("Error searching TIL entries:", error);
+      return res.status(500).json({ message: "Error searching TIL entries" });
+    }
+  });
+
+  // Create a TIL entry
+  app.post("/api/til", async (req: Request, res: Response) => {
+    try {
+      const validatedData = insertTilEntrySchema.parse(req.body);
+      const entry = await storage.createTilEntry(validatedData);
+      
+      // Handle tags if provided
+      if (req.body.tags && Array.isArray(req.body.tags)) {
+        for (const tagId of req.body.tags) {
+          await storage.addTagToTil({
+            tilId: entry.id,
+            tagId: parseInt(tagId)
+          });
+        }
+      }
+      
+      return res.status(201).json(entry);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const validationError = fromZodError(error);
+        return res.status(400).json({ message: validationError.message });
+      }
+      console.error("Error creating TIL entry:", error);
+      return res.status(500).json({ message: "Error creating TIL entry" });
+    }
+  });
+
+  // GitHub Repositories Routes
+  
+  // Get all repositories for a user
+  app.get("/api/github/repos/:userId", async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      const repos = await storage.getGithubRepositoriesByUser(userId);
+      return res.json(repos);
+    } catch (error) {
+      console.error("Error fetching GitHub repositories:", error);
+      return res.status(500).json({ message: "Error fetching GitHub repositories" });
+    }
+  });
+
+  // Get repositories filtered by language
+  app.get("/api/github/language/:language", async (req: Request, res: Response) => {
+    try {
+      const { language } = req.params;
+      const repos = await storage.getGithubRepositoriesByLanguage(language);
+      return res.json(repos);
+    } catch (error) {
+      console.error("Error fetching GitHub repositories by language:", error);
+      return res.status(500).json({ message: "Error fetching GitHub repositories by language" });
+    }
+  });
+
+  // Search repositories
+  app.get("/api/github/search", async (req: Request, res: Response) => {
+    try {
+      const query = req.query.q as string || "";
+      const results = await storage.searchGithubRepositories(query);
+      return res.json(results);
+    } catch (error) {
+      console.error("Error searching GitHub repositories:", error);
+      return res.status(500).json({ message: "Error searching GitHub repositories" });
+    }
+  });
+
+  // Fetch and store repositories from GitHub API
+  app.post("/api/github/sync", async (req: Request, res: Response) => {
+    try {
+      const { username, userId } = req.body;
+      
+      if (!username || !userId) {
+        return res.status(400).json({ message: "Username and userId are required" });
+      }
+
+      // Check if GitHub Access Token is available
+      const githubToken = process.env.GITHUB_ACCESS_TOKEN;
+      if (!githubToken) {
+        return res.status(500).json({ message: "GitHub API token not configured" });
+      }
+
+      // Fetch repositories from GitHub API
+      const response = await axios.get(`https://api.github.com/users/${username}/repos`, {
+        headers: {
+          Authorization: `token ${githubToken}`,
+          Accept: 'application/vnd.github.v3+json'
+        }
+      });
+
+      const repositories = await Promise.all(response.data.map(async (repo: any) => {
+        // Get languages for repository
+        const languagesResponse = await axios.get(repo.languages_url, {
+          headers: {
+            Authorization: `token ${githubToken}`,
+            Accept: 'application/vnd.github.v3+json'
+          }
+        });
+
+        // Get README content if available
+        let readme = null;
+        try {
+          const readmeResponse = await axios.get(`https://api.github.com/repos/${username}/${repo.name}/readme`, {
+            headers: {
+              Authorization: `token ${githubToken}`,
+              Accept: 'application/vnd.github.v3+json'
+            }
+          });
+          const content = readmeResponse.data.content;
+          readme = Buffer.from(content, 'base64').toString('utf-8');
+        } catch (e) {
+          // README not found or other issue
+          console.log(`No README found for ${repo.name}`);
+        }
+
+        // Create or update repository in database
+        const repoData = {
+          name: repo.name,
+          fullName: repo.full_name,
+          description: repo.description,
+          url: repo.html_url,
+          homepage: repo.homepage,
+          stars: repo.stargazers_count,
+          forks: repo.forks_count,
+          languages: languagesResponse.data,
+          topics: repo.topics || [],
+          readme: readme,
+          userId: parseInt(userId)
+        };
+
+        // Check if repository already exists
+        const existingRepos = await storage.getGithubRepositoriesByUser(parseInt(userId));
+        const existingRepo = existingRepos.find(r => r.name === repo.name);
+
+        if (existingRepo) {
+          return await storage.updateGithubRepository(existingRepo.id, repoData);
+        } else {
+          return await storage.createGithubRepository(repoData);
+        }
+      }));
+
+      return res.status(200).json({ 
+        message: `Successfully synced ${repositories.length} repositories`,
+        repositories
+      });
+    } catch (error) {
+      console.error("Error syncing GitHub repositories:", error);
+      return res.status(500).json({ 
+        message: "Error syncing GitHub repositories",
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   });
 

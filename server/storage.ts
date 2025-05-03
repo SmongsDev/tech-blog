@@ -11,7 +11,7 @@ import {
   type PostWithRelations, type TilEntryWithRelations, type GithubRepositoryWithLanguages
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, like, desc, and, SQL, asc } from "drizzle-orm";
+import { eq, like, desc, and, asc, or, sql, inArray } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -69,103 +69,52 @@ export interface IStorage {
   searchGithubRepositories(query: string): Promise<GithubRepository[]>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<number, User>;
-  private posts: Map<number, Post>;
-  private tags: Map<number, Tag>;
-  private postsTags: Map<number, PostTag>;
-  private comments: Map<number, Comment>;
-  
-  private userIdCounter: number;
-  private postIdCounter: number;
-  private tagIdCounter: number;
-  private postTagIdCounter: number;
-  private commentIdCounter: number;
-
-  constructor() {
-    this.users = new Map();
-    this.posts = new Map();
-    this.tags = new Map();
-    this.postsTags = new Map();
-    this.comments = new Map();
-    
-    this.userIdCounter = 1;
-    this.postIdCounter = 1;
-    this.tagIdCounter = 1;
-    this.postTagIdCounter = 1;
-    this.commentIdCounter = 1;
-    
-    // Initialize with sample data
-    this.initializeData();
-  }
-
-  private initializeData() {
-    // Add a default admin user
-    const user: InsertUser = {
-      username: "alexjohnson",
-      password: "password123", // In a real app, this would be hashed
-      fullName: "Alex Johnson",
-      bio: "Building web applications with React, Node.js, and TypeScript. Passionate about clean code and performance.",
-      avatarUrl: "https://images.unsplash.com/photo-1568602471122-7832951cc4c5?auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
-      twitterUrl: "https://twitter.com",
-      githubUrl: "https://github.com",
-      linkedinUrl: "https://linkedin.com",
-      role: "admin"
-    };
-    this.createUser(user);
-    
-    // Add some tags
-    const tagData = [
-      { name: "React", slug: "react", color: "blue" },
-      { name: "JavaScript", slug: "javascript", color: "yellow" },
-      { name: "TypeScript", slug: "typescript", color: "purple" },
-      { name: "Node.js", slug: "nodejs", color: "green" },
-      { name: "Performance", slug: "performance", color: "emerald" },
-      { name: "Docker", slug: "docker", color: "red" },
-      { name: "DevOps", slug: "devops", color: "blue" },
-      { name: "CSS", slug: "css", color: "indigo" }
-    ];
-    
-    tagData.forEach(tag => this.createTag(tag));
-  }
-
+export class DatabaseStorage implements IStorage {
   // Users
   async getUser(id: number): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username
-    );
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
   }
 
   async createUser(userData: InsertUser): Promise<User> {
-    const id = this.userIdCounter++;
-    const user: User = { ...userData, id };
-    this.users.set(id, user);
+    const [user] = await db.insert(users).values(userData).returning();
+    return user;
+  }
+
+  async updateUser(id: number, userData: Partial<InsertUser>): Promise<User> {
+    const [user] = await db
+      .update(users)
+      .set(userData)
+      .where(eq(users.id, id))
+      .returning();
     return user;
   }
 
   async getAllUsers(): Promise<User[]> {
-    return Array.from(this.users.values());
+    return db.select().from(users);
   }
 
   // Posts
   async getPost(id: number): Promise<Post | undefined> {
-    return this.posts.get(id);
+    const [post] = await db.select().from(posts).where(eq(posts.id, id));
+    return post;
   }
 
   async getPostBySlug(slug: string): Promise<PostWithRelations | undefined> {
-    const post = Array.from(this.posts.values()).find(post => post.slug === slug);
+    const [post] = await db.select().from(posts).where(eq(posts.slug, slug));
     if (!post) return undefined;
-    
+
     const author = await this.getUser(post.authorId);
     if (!author) return undefined;
-    
+
     const tags = await this.getPostTags(post.id);
     const comments = await this.getPostComments(post.id);
-    
+
     return {
       ...post,
       author,
@@ -175,13 +124,13 @@ export class MemStorage implements IStorage {
   }
 
   async getAllPosts(): Promise<Post[]> {
-    return Array.from(this.posts.values());
+    return db.select().from(posts);
   }
 
   async getPostsWithRelations(): Promise<PostWithRelations[]> {
-    const posts = await this.getAllPosts();
+    const allPosts = await this.getAllPosts();
     return Promise.all(
-      posts.map(async post => {
+      allPosts.map(async (post) => {
         const author = (await this.getUser(post.authorId))!;
         const tags = await this.getPostTags(post.id);
         return {
@@ -194,115 +143,351 @@ export class MemStorage implements IStorage {
   }
 
   async getFeaturedPosts(limit = 1): Promise<PostWithRelations[]> {
-    const allPosts = await this.getPostsWithRelations();
-    return allPosts
-      .filter(post => post.featured && post.published)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, limit);
+    const featuredPosts = await db.select()
+      .from(posts)
+      .where(and(eq(posts.featured, true), eq(posts.published, true)))
+      .orderBy(desc(posts.createdAt))
+      .limit(limit);
+
+    return Promise.all(
+      featuredPosts.map(async (post) => {
+        const author = (await this.getUser(post.authorId))!;
+        const tags = await this.getPostTags(post.id);
+        return {
+          ...post,
+          author,
+          tags
+        };
+      })
+    );
   }
 
   async getRecentPosts(limit = 5): Promise<PostWithRelations[]> {
-    const allPosts = await this.getPostsWithRelations();
-    return allPosts
-      .filter(post => post.published)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, limit);
+    const recentPosts = await db.select()
+      .from(posts)
+      .where(eq(posts.published, true))
+      .orderBy(desc(posts.createdAt))
+      .limit(limit);
+
+    return Promise.all(
+      recentPosts.map(async (post) => {
+        const author = (await this.getUser(post.authorId))!;
+        const tags = await this.getPostTags(post.id);
+        return {
+          ...post,
+          author,
+          tags
+        };
+      })
+    );
   }
 
   async getPopularPosts(limit = 4): Promise<PostWithRelations[]> {
     // In a real app, this would be based on view count or other metrics
-    // For this example, we'll just return recent posts
+    // For now, we'll just return recent posts
     return this.getRecentPosts(limit);
   }
 
   async getPostsByTag(tagSlug: string): Promise<PostWithRelations[]> {
     const tag = await this.getTagBySlug(tagSlug);
     if (!tag) return [];
+
+    const postTagsData = await db.select()
+      .from(postsTags)
+      .where(eq(postsTags.tagId, tag.id));
+
+    const postIds = postTagsData.map(pt => pt.postId);
     
-    const postTags = Array.from(this.postsTags.values())
-      .filter(pt => pt.tagId === tag.id);
-    
-    const postIds = postTags.map(pt => pt.postId);
-    const postsWithRelations = await this.getPostsWithRelations();
-    
-    return postsWithRelations.filter(post => 
-      postIds.includes(post.id) && post.published
+    if (postIds.length === 0) return [];
+
+    const taggedPosts = await db.select()
+      .from(posts)
+      .where(and(
+        eq(posts.published, true), 
+        inArray(posts.id, postIds)
+      ))
+      .orderBy(desc(posts.createdAt));
+
+    return Promise.all(
+      taggedPosts.map(async (post) => {
+        const author = (await this.getUser(post.authorId))!;
+        const tags = await this.getPostTags(post.id);
+        return {
+          ...post,
+          author,
+          tags
+        };
+      })
     );
   }
 
   async createPost(postData: InsertPost): Promise<Post> {
-    const id = this.postIdCounter++;
-    const createdAt = new Date().toISOString();
-    const post: Post = { ...postData, id, createdAt };
-    this.posts.set(id, post);
+    const [post] = await db.insert(posts).values(postData).returning();
     return post;
   }
 
   async searchPosts(query: string): Promise<PostWithRelations[]> {
     if (!query.trim()) return [];
+
+    const searchPattern = `%${query}%`;
     
-    const lowerQuery = query.toLowerCase();
-    const postsWithRelations = await this.getPostsWithRelations();
-    
-    return postsWithRelations.filter(post => 
-      (post.title.toLowerCase().includes(lowerQuery) ||
-       post.excerpt.toLowerCase().includes(lowerQuery) ||
-       post.content.toLowerCase().includes(lowerQuery)) &&
-      post.published
+    const searchResults = await db.select()
+      .from(posts)
+      .where(and(
+        eq(posts.published, true),
+        or(
+          like(posts.title, searchPattern),
+          like(posts.excerpt, searchPattern),
+          like(posts.content, searchPattern)
+        )
+      ))
+      .orderBy(desc(posts.createdAt));
+
+    return Promise.all(
+      searchResults.map(async (post) => {
+        const author = (await this.getUser(post.authorId))!;
+        const tags = await this.getPostTags(post.id);
+        return {
+          ...post,
+          author,
+          tags
+        };
+      })
     );
   }
 
   // Tags
   async getTag(id: number): Promise<Tag | undefined> {
-    return this.tags.get(id);
+    const [tag] = await db.select().from(tags).where(eq(tags.id, id));
+    return tag;
   }
 
   async getTagBySlug(slug: string): Promise<Tag | undefined> {
-    return Array.from(this.tags.values()).find(tag => tag.slug === slug);
+    const [tag] = await db.select().from(tags).where(eq(tags.slug, slug));
+    return tag;
   }
 
   async getAllTags(): Promise<Tag[]> {
-    return Array.from(this.tags.values());
+    return db.select().from(tags);
   }
 
   async createTag(tagData: InsertTag): Promise<Tag> {
-    const id = this.tagIdCounter++;
-    const tag: Tag = { ...tagData, id };
-    this.tags.set(id, tag);
+    const [tag] = await db.insert(tags).values(tagData).returning();
     return tag;
   }
 
   // Post Tags
   async getPostTags(postId: number): Promise<Tag[]> {
-    const postTagIds = Array.from(this.postsTags.values())
-      .filter(pt => pt.postId === postId)
-      .map(pt => pt.tagId);
+    const postTagsData = await db.select()
+      .from(postsTags)
+      .where(eq(postsTags.postId, postId));
     
-    return Array.from(this.tags.values())
-      .filter(tag => postTagIds.includes(tag.id));
+    const tagIds = postTagsData.map(pt => pt.tagId);
+    
+    if (tagIds.length === 0) return [];
+    
+    return db.select()
+      .from(tags)
+      .where(inArray(tags.id, tagIds));
   }
 
   async addTagToPost(postTagData: InsertPostTag): Promise<PostTag> {
-    const id = this.postTagIdCounter++;
-    const postTag: PostTag = { ...postTagData, id };
-    this.postsTags.set(id, postTag);
+    const [postTag] = await db.insert(postsTags).values(postTagData).returning();
     return postTag;
   }
 
   // Comments
   async getPostComments(postId: number): Promise<Comment[]> {
-    return Array.from(this.comments.values())
-      .filter(comment => comment.postId === postId)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return db.select()
+      .from(comments)
+      .where(eq(comments.postId, postId))
+      .orderBy(desc(comments.createdAt));
   }
 
   async createComment(commentData: InsertComment): Promise<Comment> {
-    const id = this.commentIdCounter++;
-    const createdAt = new Date().toISOString();
-    const comment: Comment = { ...commentData, id, createdAt };
-    this.comments.set(id, comment);
+    const [comment] = await db.insert(comments).values(commentData).returning();
     return comment;
+  }
+
+  // TIL Entries
+  async getTilEntry(id: number): Promise<TilEntry | undefined> {
+    const [entry] = await db.select().from(tilEntries).where(eq(tilEntries.id, id));
+    return entry;
+  }
+
+  async getAllTilEntries(): Promise<TilEntry[]> {
+    return db.select().from(tilEntries).orderBy(desc(tilEntries.createdAt));
+  }
+
+  async getTilEntriesWithRelations(): Promise<TilEntryWithRelations[]> {
+    const entries = await this.getAllTilEntries();
+    return Promise.all(
+      entries.map(async (entry) => {
+        const author = (await this.getUser(entry.authorId))!;
+        const tags = await this.getTilTags(entry.id);
+        return {
+          ...entry,
+          author,
+          tags
+        };
+      })
+    );
+  }
+
+  async getRecentTilEntries(limit = 10): Promise<TilEntryWithRelations[]> {
+    const recentEntries = await db.select()
+      .from(tilEntries)
+      .orderBy(desc(tilEntries.createdAt))
+      .limit(limit);
+
+    return Promise.all(
+      recentEntries.map(async (entry) => {
+        const author = (await this.getUser(entry.authorId))!;
+        const tags = await this.getTilTags(entry.id);
+        return {
+          ...entry,
+          author,
+          tags
+        };
+      })
+    );
+  }
+
+  async getTilEntriesByTag(tagSlug: string): Promise<TilEntryWithRelations[]> {
+    const tag = await this.getTagBySlug(tagSlug);
+    if (!tag) return [];
+
+    const tilTagsData = await db.select()
+      .from(tilTags)
+      .where(eq(tilTags.tagId, tag.id));
+
+    const tilIds = tilTagsData.map(tt => tt.tilId);
+    
+    if (tilIds.length === 0) return [];
+
+    const taggedEntries = await db.select()
+      .from(tilEntries)
+      .where(tilEntries.id.in(tilIds))
+      .orderBy(desc(tilEntries.createdAt));
+
+    return Promise.all(
+      taggedEntries.map(async (entry) => {
+        const author = (await this.getUser(entry.authorId))!;
+        const tags = await this.getTilTags(entry.id);
+        return {
+          ...entry,
+          author,
+          tags
+        };
+      })
+    );
+  }
+
+  async createTilEntry(entryData: InsertTilEntry): Promise<TilEntry> {
+    const [entry] = await db.insert(tilEntries).values(entryData).returning();
+    return entry;
+  }
+
+  async searchTilEntries(query: string): Promise<TilEntryWithRelations[]> {
+    if (!query.trim()) return [];
+
+    const searchPattern = `%${query}%`;
+    
+    const searchResults = await db.select()
+      .from(tilEntries)
+      .where(
+        or(
+          like(tilEntries.title, searchPattern),
+          like(tilEntries.content, searchPattern)
+        )
+      )
+      .orderBy(desc(tilEntries.createdAt));
+
+    return Promise.all(
+      searchResults.map(async (entry) => {
+        const author = (await this.getUser(entry.authorId))!;
+        const tags = await this.getTilTags(entry.id);
+        return {
+          ...entry,
+          author,
+          tags
+        };
+      })
+    );
+  }
+
+  // TIL Tags
+  async getTilTags(tilId: number): Promise<Tag[]> {
+    const tilTagsData = await db.select()
+      .from(tilTags)
+      .where(eq(tilTags.tilId, tilId));
+    
+    const tagIds = tilTagsData.map(tt => tt.tagId);
+    
+    if (tagIds.length === 0) return [];
+    
+    return db.select()
+      .from(tags)
+      .where(tags.id.in(tagIds));
+  }
+
+  async addTagToTil(tilTagData: InsertTilTag): Promise<TilTag> {
+    const [tilTag] = await db.insert(tilTags).values(tilTagData).returning();
+    return tilTag;
+  }
+
+  // GitHub Repositories
+  async getGithubRepository(id: number): Promise<GithubRepository | undefined> {
+    const [repo] = await db.select().from(githubRepositories).where(eq(githubRepositories.id, id));
+    return repo;
+  }
+
+  async getGithubRepositoriesByUser(userId: number): Promise<GithubRepository[]> {
+    return db.select()
+      .from(githubRepositories)
+      .where(eq(githubRepositories.userId, userId))
+      .orderBy(desc(githubRepositories.stars));
+  }
+
+  async createGithubRepository(repoData: InsertGithubRepository): Promise<GithubRepository> {
+    const [repo] = await db.insert(githubRepositories).values(repoData).returning();
+    return repo;
+  }
+
+  async updateGithubRepository(id: number, repoData: Partial<InsertGithubRepository>): Promise<GithubRepository> {
+    const [repo] = await db
+      .update(githubRepositories)
+      .set({ ...repoData, lastFetched: new Date() })
+      .where(eq(githubRepositories.id, id))
+      .returning();
+    return repo;
+  }
+
+  async getGithubRepositoriesByLanguage(language: string): Promise<GithubRepository[]> {
+    // Using SQL approach since jsonb filtering is complex
+    const repos = await db.select().from(githubRepositories);
+    return repos.filter(repo => {
+      if (!repo.languages) return false;
+      return Object.keys(repo.languages).includes(language);
+    });
+  }
+
+  async searchGithubRepositories(query: string): Promise<GithubRepository[]> {
+    if (!query.trim()) return [];
+
+    const searchPattern = `%${query}%`;
+    
+    return db.select()
+      .from(githubRepositories)
+      .where(
+        or(
+          like(githubRepositories.name, searchPattern),
+          like(githubRepositories.fullName, searchPattern),
+          like(githubRepositories.description || '', searchPattern)
+        )
+      )
+      .orderBy(desc(githubRepositories.stars));
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
