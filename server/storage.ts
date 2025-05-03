@@ -1,18 +1,24 @@
 import { 
-  users, posts, tags, postsTags, comments,
+  users, posts, tags, postsTags, comments, tilEntries, tilTags, githubRepositories,
   type User, type InsertUser,
   type Post, type InsertPost,
   type Tag, type InsertTag,
   type PostTag, type InsertPostTag,
   type Comment, type InsertComment,
-  type PostWithRelations
+  type TilEntry, type InsertTilEntry,
+  type TilTag, type InsertTilTag,
+  type GithubRepository, type InsertGithubRepository,
+  type PostWithRelations, type TilEntryWithRelations, type GithubRepositoryWithLanguages
 } from "@shared/schema";
+import { db } from "./db";
+import { eq, like, desc, and, SQL, asc } from "drizzle-orm";
 
 export interface IStorage {
   // Users
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  updateUser(id: number, user: Partial<InsertUser>): Promise<User>;
   getAllUsers(): Promise<User[]>;
 
   // Posts
@@ -40,6 +46,27 @@ export interface IStorage {
   // Comments
   getPostComments(postId: number): Promise<Comment[]>;
   createComment(comment: InsertComment): Promise<Comment>;
+
+  // TIL Entries
+  getTilEntry(id: number): Promise<TilEntry | undefined>;
+  getAllTilEntries(): Promise<TilEntry[]>;
+  getTilEntriesWithRelations(): Promise<TilEntryWithRelations[]>;
+  getRecentTilEntries(limit?: number): Promise<TilEntryWithRelations[]>;
+  getTilEntriesByTag(tagSlug: string): Promise<TilEntryWithRelations[]>;
+  createTilEntry(entry: InsertTilEntry): Promise<TilEntry>;
+  searchTilEntries(query: string): Promise<TilEntryWithRelations[]>;
+  
+  // TIL Tags
+  getTilTags(tilId: number): Promise<Tag[]>;
+  addTagToTil(tilTag: InsertTilTag): Promise<TilTag>;
+  
+  // GitHub Repositories
+  getGithubRepository(id: number): Promise<GithubRepository | undefined>;
+  getGithubRepositoriesByUser(userId: number): Promise<GithubRepository[]>;
+  createGithubRepository(repo: InsertGithubRepository): Promise<GithubRepository>;
+  updateGithubRepository(id: number, repo: Partial<InsertGithubRepository>): Promise<GithubRepository>;
+  getGithubRepositoriesByLanguage(language: string): Promise<GithubRepository[]>;
+  searchGithubRepositories(query: string): Promise<GithubRepository[]>;
 }
 
 export class MemStorage implements IStorage {
