@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'wouter';
-import { Menu, Search, X } from 'lucide-react';
+import { Menu, Search, X, BookOpen, Github } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ThemeToggle from './ThemeToggle';
 import SearchOverlay from './SearchOverlay';
@@ -18,7 +18,8 @@ export default function Navbar() {
   const navLinks = [
     { name: 'Home', path: '/' },
     { name: 'Blog', path: '/blog' },
-    { name: 'Tags', path: '/tags' },
+    { name: 'TIL', path: '/til', icon: BookOpen },
+    { name: 'Repositories', path: '/repositories', icon: Github },
     { name: 'About', path: '/about' },
     { name: 'Contact', path: '/contact' },
   ];
@@ -30,8 +31,8 @@ export default function Navbar() {
           <div className="flex justify-between h-16">
             <div className="flex">
               <div className="flex-shrink-0 flex items-center">
-                <Link href="/" className="text-xl font-bold text-blue-500 dark:text-blue-400">
-                  <span className="text-gray-800 dark:text-white">&lt;</span>DevBlog<span className="text-gray-800 dark:text-white">/&gt;</span>
+                <Link href="/" className="text-xl font-bold">
+                  <span className="bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">SMONGS</span>
                 </Link>
               </div>
               <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
@@ -41,10 +42,11 @@ export default function Navbar() {
                     href={link.path}
                     className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
                       isActive(link.path)
-                        ? 'border-blue-500 text-gray-900 dark:text-white'
+                        ? 'border-indigo-500 text-gray-900 dark:text-white'
                         : 'border-transparent text-gray-600 dark:text-gray-300 hover:border-gray-300 hover:text-gray-800 dark:hover:text-white'
                     }`}
                   >
+                    {link.icon && <link.icon className="mr-1 h-4 w-4" />}
                     {link.name}
                   </Link>
                 ))}
@@ -84,13 +86,14 @@ export default function Navbar() {
                 <Link
                   key={link.path}
                   href={link.path}
-                  className={`block pl-3 pr-4 py-2 border-l-4 text-base font-medium ${
+                  className={`flex items-center pl-3 pr-4 py-2 border-l-4 text-base font-medium ${
                     isActive(link.path)
-                      ? 'bg-blue-50 dark:bg-gray-700 border-blue-500 text-blue-500 dark:text-white'
+                      ? 'bg-indigo-50 dark:bg-gray-700 border-indigo-500 text-indigo-600 dark:text-white'
                       : 'border-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 hover:text-gray-800'
                   }`}
                   onClick={() => setMobileMenuOpen(false)}
                 >
+                  {link.icon && <link.icon className="mr-2 h-5 w-5" />}
                   {link.name}
                 </Link>
               ))}
