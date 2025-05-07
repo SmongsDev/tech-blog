@@ -4,8 +4,6 @@ import { User } from '@shared/schema';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { 
-  Mail, 
-  GitPullRequest, 
   Twitter, 
   Github, 
   Linkedin, 
@@ -14,7 +12,6 @@ import {
   Server, 
   Terminal,
   Globe,
-  Bookmark,
   BookOpen,
   Share2,
   HardDrive,
@@ -270,25 +267,7 @@ export default function About() {
         )}
       </div>
 
-      {/* Contact */}
-      <div className="text-center">
-        <h2 className="text-3xl font-bold mb-8 bg-gradient-to-r from-rose-500 to-orange-500 bg-clip-text text-transparent">
-          Get in Touch
-        </h2>
-        <Card className="inline-block border-0 shadow-lg p-8 max-w-lg mx-auto">
-          <CardContent className="p-0">
-            <p className="text-gray-600 dark:text-gray-300 mb-6 text-lg">
-              Have questions, feedback, or want to collaborate? I'd love to hear from you!
-            </p>
-            <Button asChild className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700">
-              <Link href="/contact" className="inline-flex items-center">
-                <Mail className="mr-2 h-5 w-5" />
-                Contact Me
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+
     </div>
   );
 }
