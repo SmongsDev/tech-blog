@@ -95,22 +95,23 @@ export default function TodayILearned() {
   });
 
   return (
-    <div className="container py-8">
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold mb-2">Today I Learned</h1>
-          <p className="text-muted-foreground">
-            Short notes and code snippets on things I learn day to day
-          </p>
-        </div>
-        <Button className="bg-gradient-to-r from-pink-500 to-violet-500 hover:from-pink-600 hover:to-violet-600">
-          <Plus size={16} className="mr-2" />
-          Add TIL
-        </Button>
-      </div>
+    <main className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+      <div className="flex flex-col lg:flex-row gap-8">
+        {/* Left column (TIL entries list) */}
+        <div className="lg:w-3/4">
+          <div className="flex justify-between items-center mb-8">
+            <div>
+              <h1 className="text-3xl font-bold mb-2">Today I Learned</h1>
+              <p className="text-muted-foreground">
+                Short notes and code snippets on things I learn day to day
+              </p>
+            </div>
+            <Button className="bg-gradient-to-r from-pink-500 to-violet-500 hover:from-pink-600 hover:to-violet-600">
+              <Plus size={16} className="mr-2" />
+              Add TIL
+            </Button>
+          </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="md:col-span-3">
           <div className="relative mb-6">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
             <Input
@@ -138,13 +139,13 @@ export default function TodayILearned() {
           )}
         </div>
 
-        <div>
+        {/* Right column (tags filter) */}
+        <div className="lg:w-1/4">
           <div className="sticky top-4">
             <h2 className="text-lg font-semibold mb-4 flex items-center">
               <Tag size={16} className="mr-2" />
               Tags
             </h2>
-            
             {isLoadingTags ? (
               <>
                 <Skeleton className="h-8 w-full mb-2" />
@@ -160,7 +161,6 @@ export default function TodayILearned() {
                 >
                   All
                 </Badge>
-                
                 {tags?.map((tag: TagType) => (
                   <Badge
                     key={tag.id}
@@ -176,6 +176,6 @@ export default function TodayILearned() {
           </div>
         </div>
       </div>
-    </div>
+    </main>
   );
 }

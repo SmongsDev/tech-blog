@@ -148,7 +148,7 @@ export default function Repositories() {
   const queryClient = useQueryClient();
 
   const { data: repositories, isLoading: isLoadingRepos } = useQuery({
-    queryKey: ["/api/github/repos/1"], // Replace with actual user ID
+    queryKey: ["/api/github/repos"],
   });
 
   // Extract all unique languages from repos
@@ -171,7 +171,7 @@ export default function Repositories() {
     mutationFn: async () => {
       return await apiRequest("/api/github/sync", {
         method: "POST",
-        body: JSON.stringify({ username: "your-github-username", userId: 1 }) // Replace with actual GitHub username and user ID
+        body: JSON.stringify({ username: "SmongsDev"})
       });
     },
     onSuccess: () => {
@@ -179,7 +179,7 @@ export default function Repositories() {
         title: "Repositories synced!",
         description: "Your GitHub repositories have been successfully synced.",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/github/repos/1"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/github/repos"] });
     },
     onError: (error) => {
       toast({
@@ -204,34 +204,35 @@ export default function Repositories() {
   });
 
   return (
-    <div className="container py-8">
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold mb-2">GitHub Repositories</h1>
-          <p className="text-muted-foreground">
-            My open source projects and contributions
-          </p>
-        </div>
-        <Button 
-          onClick={() => syncMutation.mutate()}
-          disabled={syncMutation.isPending}
-          className="bg-gradient-to-r from-blue-500 to-violet-500 hover:from-blue-600 hover:to-violet-600"
-        >
-          <RefreshCw size={16} className={`mr-2 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
-          Sync Repositories
-        </Button>
-      </div>
+    <main className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+      <div className="flex flex-col lg:flex-row gap-8">
+        {/* Left column (repositories list) */}
+        <div className="lg:w-3/4">
+          <div className="flex justify-between items-center mb-8">
+            <div>
+              <h1 className="text-3xl font-bold mb-2">GitHub Repositories</h1>
+              <p className="text-muted-foreground">
+                My open source projects and contributions
+              </p>
+            </div>
+            <Button 
+              onClick={() => syncMutation.mutate()}
+              disabled={syncMutation.isPending}
+              className="bg-gradient-to-r from-blue-500 to-violet-500 hover:from-blue-600 hover:to-violet-600"
+            >
+              <RefreshCw size={16} className={`mr-2 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
+              Sync Repositories
+            </Button>
+          </div>
 
-      {syncMutation.isError && (
-        <Alert variant="destructive" className="mb-6">
-          <AlertDescription>
-            Failed to sync repositories. Please check your GitHub token and try again.
-          </AlertDescription>
-        </Alert>
-      )}
+          {syncMutation.isError && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertDescription>
+                Failed to sync repositories. Please check your GitHub token and try again.
+              </AlertDescription>
+            </Alert>
+          )}
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="md:col-span-3">
           <div className="relative mb-6">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
             <Input
@@ -269,13 +270,13 @@ export default function Repositories() {
           )}
         </div>
 
-        <div>
+        {/* Right column (languages filter) */}
+        <div className="lg:w-1/4">
           <div className="sticky top-4">
             <h2 className="text-lg font-semibold mb-4 flex items-center">
               <Code size={16} className="mr-2" />
               Languages
             </h2>
-            
             <div className="flex flex-wrap gap-2">
               <Badge
                 variant={selectedLanguage === null ? "default" : "outline"}
@@ -284,7 +285,6 @@ export default function Repositories() {
               >
                 All
               </Badge>
-              
               {allLanguages.map(language => (
                 <Badge
                   key={language}
@@ -303,6 +303,6 @@ export default function Repositories() {
           </div>
         </div>
       </div>
-    </div>
+    </main>
   );
 }

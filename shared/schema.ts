@@ -6,14 +6,14 @@ export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
-  fullName: text("full_name").notNull(),
+  fullname: text("fullname").notNull(),
   bio: text("bio"),
-  avatarUrl: text("avatar_url"),
-  nickname: text("nickname").default("SMONGS"),
-  twitterUrl: text("twitter_url"),
-  githubUrl: text("github_url"),
-  linkedinUrl: text("linkedin_url"),
-  githubToken: text("github_token"),
+  avatarUrl: text("avatarurl"),
+  nickname: text("nickname").default("SmongsDev"),
+  twitterUrl: text("twitterurl"),
+  githubUrl: text("githuburl"),
+  linkedinUrl: text("linkedinurl"),
+  githubToken: text("githubtoken"),
   role: text("role").default("author"),
   skills: jsonb("skills").$type<string[]>().default([]),
   introduction: text("introduction"),
@@ -32,64 +32,57 @@ export const posts = pgTable("posts", {
   slug: text("slug").notNull().unique(),
   excerpt: text("excerpt").notNull(),
   content: text("content").notNull(),
-  coverImage: text("cover_image"),
-  authorId: integer("author_id").notNull().references(() => users.id),
+  coverImage: text("coverimage"),
+  authorId: integer("authorid").notNull().references(() => users.id),
   published: boolean("published").default(true),
   featured: boolean("featured").default(false),
-  createdAt: timestamp("created_at").defaultNow(),
-  readingTime: text("reading_time"),
+  createdAt: timestamp("createdat").defaultNow(),
+  readingTime: text("readingtime"),
 });
 
 export const postsTags = pgTable("posts_tags", {
   id: serial("id").primaryKey(),
-  postId: integer("post_id").notNull().references(() => posts.id),
-  tagId: integer("tag_id").notNull().references(() => tags.id),
+  postId: integer("postid").notNull().references(() => posts.id),
+  tagId: integer("tagid").notNull().references(() => tags.id),
 });
 
 export const comments = pgTable("comments", {
   id: serial("id").primaryKey(),
   content: text("content").notNull(),
-  authorName: text("author_name").notNull(),
-  authorEmail: text("author_email").notNull(),
-  postId: integer("post_id").notNull().references(() => posts.id),
-  createdAt: timestamp("created_at").defaultNow(),
+  authorName: text("authorname").notNull(),
+  authorEmail: text("authoremail").notNull(),
+  postId: integer("postid").notNull().references(() => posts.id),
+  createdAt: timestamp("createdat").defaultNow(),
 });
 
 export const tilEntries = pgTable("til_entries", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
   content: text("content").notNull(),
-  authorId: integer("author_id").notNull().references(() => users.id),
-  createdAt: timestamp("created_at").defaultNow(),
+  authorId: integer("authorid").notNull().references(() => users.id),
+  createdAt: timestamp("createdat").defaultNow(),
 });
 
 export const tilTags = pgTable("til_tags", {
   id: serial("id").primaryKey(),
-  tilId: integer("til_id").notNull().references(() => tilEntries.id),
-  tagId: integer("tag_id").notNull().references(() => tags.id),
+  tilId: integer("tilid").notNull().references(() => tilEntries.id),
+  tagId: integer("tagid").notNull().references(() => tags.id),
 });
 
 export const githubRepositories = pgTable("github_repositories", {
   id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  fullName: text("full_name").notNull(),
-  description: text("description"),
-  url: text("url").notNull(),
-  homepage: text("homepage"),
-  stars: integer("stars").default(0),
-  forks: integer("forks").default(0),
+  userid: integer("userid").references(() => users.id),
+  reponame: text("reponame").notNull(),
+  repourl: text("repourl").notNull(),
   languages: jsonb("languages").$type<Record<string, number>>(),
-  topics: jsonb("topics").$type<string[]>(),
-  readme: text("readme"),
-  lastFetched: timestamp("last_fetched").defaultNow(),
-  userId: integer("user_id").references(() => users.id),
+  createdat: timestamp("createdat").defaultNow(),
 });
 
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
-  fullName: true,
+  fullname: true,
   bio: true,
   avatarUrl: true,
   nickname: true,
@@ -144,18 +137,11 @@ export const insertTilTagSchema = createInsertSchema(tilTags).pick({
 }).omit({ id: true });
 
 export const insertGithubRepositorySchema = createInsertSchema(githubRepositories).pick({
-  name: true,
-  fullName: true,
-  description: true,
-  url: true,
-  homepage: true,
-  stars: true,
-  forks: true,
+  userid: true,
+  reponame: true,
+  repourl: true,
   languages: true,
-  topics: true,
-  readme: true,
-  userId: true,
-}).omit({ id: true, lastFetched: true });
+}).omit({ id: true, createdat: true });
 
 // Types
 export type User = typeof users.$inferSelect;

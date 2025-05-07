@@ -14,6 +14,8 @@ import {
 import { z } from "zod";
 import { fromZodError } from 'zod-validation-error';
 import axios from 'axios';
+import dotenv from 'dotenv';
+dotenv.config();
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Get all posts
@@ -344,13 +346,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // GitHub Repositories Routes
   
   // Get all repositories for a user
-  app.get("/api/github/repos/:userId", async (req: Request, res: Response) => {
+  app.get("/api/github/repos", async (req, res) => {
     try {
-      const userId = parseInt(req.params.userId);
-      const repos = await storage.getGithubRepositoriesByUser(userId);
+      // 1. DB에서 블로그 주인 정보 및 GitHub username 조회
+      const user = await storage.getBlogOwner();
+      if (!user || !user.githubUrl) {
+        return res.status(404).json({ message: "User or GitHub username not found" });
+      }
+      // 2. GitHub에서 최신 레포 목록 가져오기
+      const githubToken = process.env.GITHUB_ACCESS_TOKEN;
+      const response = await axios.get(`https://api.github.com/users/SmongsDev/repos`, {
+        headers: githubToken ? { Authorization: `token ${githubToken}` } : {},
+      });
+      const githubRepos = response.data;
+  
+      // 3. DB에 저장/업데이트 (upsert)
+      await Promise.all(githubRepos.map(async (repo: any) => {
+        await storage.upsertGithubRepository({
+          id: repo.id,
+          userid: user.id,
+          reponame: repo.name,
+          repourl: repo.html_url,
+          languages: repo.language ? { [repo.language]: 1 } : {},
+          createdat: repo.created_at ? new Date(repo.created_at) : new Date(),
+        });
+      }));
+  
+      // 4. 동기화된 DB 데이터 반환
+      const repos = await storage.getAllGithubRepositories();
+      console.log(repos);
       return res.json(repos);
     } catch (error) {
-      console.error("Error fetching GitHub repositories:", error);
+      console.error("Error fetching/syncing GitHub repositories:", error);
       return res.status(500).json({ message: "Error fetching GitHub repositories" });
     }
   });
@@ -430,7 +457,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Create or update repository in database
         const repoData = {
           name: repo.name,
-          fullName: repo.full_name,
+          fullname: repo.full_name,
           description: repo.description,
           url: repo.html_url,
           homepage: repo.homepage,

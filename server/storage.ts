@@ -67,9 +67,20 @@ export interface IStorage {
   updateGithubRepository(id: number, repo: Partial<InsertGithubRepository>): Promise<GithubRepository>;
   getGithubRepositoriesByLanguage(language: string): Promise<GithubRepository[]>;
   searchGithubRepositories(query: string): Promise<GithubRepository[]>;
+  upsertGithubRepository(repoData: Partial<GithubRepository> & { id: number, userid: number }): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
+  // Always return the first user (blog owner)
+  async getBlogOwner() {
+    const [user] = await db.select().from(users).orderBy(asc(users.id)).limit(1);
+    return user;
+  }
+
+  async getAllGithubRepositories() {
+    return await db.select().from(githubRepositories);
+  }
+
   // Users
   async getUser(id: number): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
@@ -442,25 +453,24 @@ export class DatabaseStorage implements IStorage {
     return repo;
   }
 
-  async getGithubRepositoriesByUser(userId: number): Promise<GithubRepository[]> {
+  async getGithubRepositoriesByUser(userid: number): Promise<GithubRepository[]> {
     return db.select()
       .from(githubRepositories)
-      .where(eq(githubRepositories.userId, userId))
-      .orderBy(desc(githubRepositories.stars));
+      .where(eq(githubRepositories.userid, userid))
+      .orderBy(desc(githubRepositories.id));
   }
-
-  async createGithubRepository(repoData: InsertGithubRepository): Promise<GithubRepository> {
-    const [repo] = await db.insert(githubRepositories).values(repoData).returning();
-    return repo;
+  async createGithubRepository(repo: InsertGithubRepository): Promise<GithubRepository> {
+    const [insertedRepo] = await db.insert(githubRepositories).values(repo).returning();
+    return insertedRepo;
   }
-
-  async updateGithubRepository(id: number, repoData: Partial<InsertGithubRepository>): Promise<GithubRepository> {
-    const [repo] = await db
+  
+  async updateGithubRepository(id: number, repo: Partial<InsertGithubRepository>): Promise<GithubRepository> {
+    const [updatedRepo] = await db
       .update(githubRepositories)
-      .set({ ...repoData, lastFetched: new Date() })
+      .set({ ...repo })
       .where(eq(githubRepositories.id, id))
       .returning();
-    return repo;
+    return updatedRepo;
   }
 
   async getGithubRepositoriesByLanguage(language: string): Promise<GithubRepository[]> {
@@ -476,17 +486,46 @@ export class DatabaseStorage implements IStorage {
     if (!query.trim()) return [];
 
     const searchPattern = `%${query}%`;
-    
     return db.select()
       .from(githubRepositories)
       .where(
         or(
-          like(githubRepositories.name, searchPattern),
-          like(githubRepositories.fullName, searchPattern),
-          like(githubRepositories.description || '', searchPattern)
+          like(githubRepositories.reponame, searchPattern),
+          like(githubRepositories.repourl, searchPattern)
         )
       )
-      .orderBy(desc(githubRepositories.stars));
+      .orderBy(desc(githubRepositories.id));
+  }
+
+  async upsertGithubRepository(
+    repoData: Partial<GithubRepository> & { id: number; userid: number }
+  ): Promise<void> {
+    // Only allow DB columns
+    const allowedKeys = ["id", "userid", "reponame", "repourl", "languages", "createdat"];
+    const dbData: any = {};
+    for (const [key, value] of Object.entries(repoData)) {
+      if (allowedKeys.includes(key) && value !== undefined) {
+        dbData[key] = value;
+      }
+    }
+    console.log("upsert dbData:", dbData);
+
+    // id로 먼저 조회
+    const existing = await db
+      .select()
+      .from(githubRepositories)
+      .where(eq(githubRepositories.id, repoData.id));
+
+    if (existing.length > 0) {
+      // update
+      await db
+        .update(githubRepositories)
+        .set(dbData)
+        .where(eq(githubRepositories.id, repoData.id));
+    } else {
+      // insert
+      await db.insert(githubRepositories).values(dbData);
+    }
   }
 }
 
