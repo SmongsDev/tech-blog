@@ -21,7 +21,6 @@ export default function Navbar() {
     { name: 'TIL', path: '/til', icon: BookOpen },
     { name: 'Repositories', path: '/repositories', icon: Github },
     { name: 'About', path: '/about' },
-    { name: 'Contact', path: '/contact' },
   ];
 
   return (

@@ -10,7 +10,6 @@ import Home from "@/pages/Home";
 import BlogPost from "@/pages/BlogPost";
 import AllPosts from "@/pages/AllPosts";
 import About from "@/pages/About";
-import Contact from "@/pages/Contact";
 import TagsPage from "@/pages/TagsPage";
 import TodayILearned from "@/pages/TodayILearned";
 import Repositories from "@/pages/Repositories";
@@ -27,7 +26,6 @@ function Router() {
       <Route path="/til/:id" component={TodayILearned} />
       <Route path="/repositories" component={Repositories} />
       <Route path="/about" component={About} />
-      <Route path="/contact" component={Contact} />
       <Route component={NotFound} />
     </Switch>
   );
