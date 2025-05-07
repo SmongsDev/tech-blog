@@ -2,7 +2,6 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'wouter';
 import PostCard from '@/components/PostCard';
 import TagList from '@/components/TagList';
-import Newsletter from '@/components/Newsletter';
 import AuthorCard from '@/components/AuthorCard';
 import { Tag, User, PostWithRelations } from '@shared/schema';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -47,11 +46,6 @@ export default function Home() {
                 <Link href="/blog">
                   Read Latest Posts
                 </Link>
-              </Button>
-              <Button size="lg" asChild>
-                <a href="#newsletter">
-                  Subscribe
-                </a>
               </Button>
             </div>
           </div>
@@ -125,10 +119,7 @@ export default function Home() {
               </div>
             ) : null}
 
-            {/* Newsletter */}
-            <div className="mb-6" id="newsletter">
-              <Newsletter />
-            </div>
+
 
             {/* Popular Tags */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
